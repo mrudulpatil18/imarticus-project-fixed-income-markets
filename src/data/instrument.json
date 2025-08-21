@@ -1,0 +1,41 @@
+[
+  {
+    "ticker": "US10Y",
+    "bid": "4.125",
+    "ask": "4.135",
+    "ytm": "4.130",
+    "currentYield": "4.08",
+    "couponRate": "4.00",
+    "faceValue": "1000",
+    "daysToMaturity": "3650",
+    "modifiedDuration": "8.5",
+    "bondType": "Government",
+    "series": "NJ"
+  },
+  {
+    "ticker": "CORP5Y",
+    "bid": "5.250",
+    "ask": "5.275",
+    "ytm": "5.265",
+    "currentYield": "5.12",
+    "couponRate": "5.00",
+    "faceValue": "1000",
+    "daysToMaturity": "1825",
+    "modifiedDuration": "4.2",
+    "bondType": "Corporate",
+    "series": "SG"
+  },
+  {
+    "ticker": "MUNI7Y",
+    "bid": "3.850",
+    "ask": "3.875",
+    "ytm": "3.862",
+    "currentYield": "3.75",
+    "couponRate": "3.80",
+    "faceValue": "1000",
+    "daysToMaturity": "2555",
+    "modifiedDuration": "6.1",
+    "bondType": "Municipal",
+    "series": "TB"
+  }
+]
