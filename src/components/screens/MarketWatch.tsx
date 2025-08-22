@@ -29,112 +29,159 @@ import { Label } from "@/components/ui/label";
 const MarketWatch = () => {
   const [bondTypeFilter, setBondTypeFilter] = useState<string>("All");
   const [seriesFilter, setSeriesFilter] = useState<string>("All");
+  const [selectedInstrument, setSelectedInstrument] = useState<Instrument | null>(
+    null
+  );
 
   // Collect unique bond types & series from JSON
   const bondTypes = [
     "All",
-    ...new Set((instruments as Instrument[]).map((i) => i.bondType)),
+    ...new Set((instruments as unknown as Instrument[]).map((i) => i.bondType)),
   ];
   const seriesList = [
     "All",
-    ...new Set((instruments as Instrument[]).map((i) => i.series)),
+    ...new Set((instruments as unknown as Instrument[]).map((i) => i.series)),
   ];
 
   // Apply both filters
-  const filteredInstruments = (instruments as Instrument[]).filter(
+  const filteredInstruments = (instruments as unknown as Instrument[]).filter(
     (instrument) =>
       (bondTypeFilter === "All" || instrument.bondType === bondTypeFilter) &&
       (seriesFilter === "All" || instrument.series === seriesFilter)
   );
 
+  // Utility functions
+const calculateCurrentYield = (couponRate: number, faceValue: number, marketPrice: number) => {
+  return ((couponRate * faceValue) / 100) / marketPrice * 100;
+};
+
+const calculateYTM = (
+  faceValue: number,
+  marketPrice: number,
+  couponRate: number,
+  yearsToMaturity: number
+) => {
+  // Approximate YTM formula
+  const annualCoupon = (couponRate * faceValue) / 100;
   return (
-    <><div className="space-y-6">
-      <Card>
-        <div className="p-6">
-  {/* First Row */}
-  <div className="grid grid-cols-5 gap-4 mb-6">
-    <div className="col-span-2 h-24 flex flex-col justify-center">
-      <p className="font-bold text-2xl">IndiaGov 2033</p>
-      <p className="text-base text-gray-600">Ticker: INDGOV33</p>
-    </div>
-
-    <div className="text-left p-2  ">
-      <p className="font-bold text-lg">Face Value</p>
-      <p className="text-base">₹1000</p>
-    </div>
-
-    <div className="text-left p-2  ">
-      <p className="font-bold text-lg">Bid</p>
-      <p className="text-base">₹980</p>
-    </div>
-
-    <div className="text-left p-2  ">
-      <p className="font-bold text-lg">Ask</p>
-      <p className="text-base">₹985</p>
-    </div>
-  </div>
-
-  {/* Second Row */}
-  <div className="grid grid-cols-5 gap-4 mb-6">
-    <div className="text-left p-2  ">
-      <p className="font-bold text-lg">Coupon</p>
-      <p className="text-base">7.18%</p>
-    </div>
-
-    <div className="text-left p-2  ">
-      <p className="font-bold text-lg">YTM</p>
-      <p className="text-base">7.25%</p>
-    </div>
-
-    <div className="text-left p-2  ">
-      <p className="font-bold text-lg">Current Yield</p>
-      <p className="text-base">7.10%</p>
-    </div>
-
-    <div className="text-left p-2  ">
-      <p className="font-bold text-lg">Modified Duration</p>
-      <p className="text-base">6.5 yrs</p>
-    </div>
-
-    <div className="text-left p-2  ">
-      <p className="font-bold text-lg">Days to Maturity</p>
-      <p className="text-base">3,200</p>
-    </div>
-  </div>
-
-  {/* Third Row */}
-  <div className="grid grid-cols-5 gap-4">
-    <div className="text-left p-2  ">
-      <p className="font-bold text-lg">Issue Date</p>
-      <p className="text-base">01-Jan-2023</p>
-    </div>
-
-    <div className="text-left p-2  ">
-      <p className="font-bold text-lg">Maturity Date</p>
-      <p className="text-base">01-Jan-2033</p>
-    </div>
-
-    <div className="text-left p-2  ">
-      <p className="font-bold text-lg">Next Coupon</p>
-      <p className="text-base">01-Jan-2026</p>
-    </div>
-
-    <div className="text-left p-2  ">
-      <p className="font-bold text-lg">Bond Type</p>
-      <p className="text-base">Government</p>
-    </div>
-
-    <div className="text-left p-2  ">
-      <p className="font-bold text-lg">Credit Rating</p>
-      <p className="text-base">AAA</p>
-    </div>
-  </div>
-</div>
+    (annualCoupon + (faceValue - marketPrice) / yearsToMaturity) /
+    ((faceValue + marketPrice) / 2)
+  ) * 100;
+};
 
 
+  return (
+    <>
+      {/* Bond Detail Card */}
+      <div className="space-y-6">
+        <Card>
+          <div className="p-6">
+            {selectedInstrument ? (
+              <>
+                {/* First Row */}
+                <div className="grid grid-cols-5 gap-4 mb-6">
+                  <div className="col-span-2 h-24 flex flex-col justify-center">
+                    <p className="font-bold text-2xl">
+                      {selectedInstrument.name}
+                    </p>
+                    <p className="text-base text-gray-600">
+                      Ticker: {selectedInstrument.ticker}
+                    </p>
+                  </div>
 
-      </Card>
-    </div><div className="space-y-6">
+                  <div className="text-left p-2 flex flex-col justify-center">
+                    <p className="font-bold text-lg">Face Value</p>
+                    <p className="text-base">₹{selectedInstrument.faceValue}</p>
+                  </div>
+
+                  <div className="text-left p-2 flex flex-col justify-center">
+                    <p className="font-bold text-lg">Bid</p>
+                    <p className="text-base">₹{selectedInstrument.bid}</p>
+                  </div>
+
+                  <div className="text-left p-2 flex flex-col justify-center">
+                    <p className="font-bold text-lg">Ask</p>
+                    <p className="text-base">₹{selectedInstrument.ask}</p>
+                  </div>
+                </div>
+
+                {/* Second Row */}
+                <div className="grid grid-cols-5 gap-4 mb-6">
+                  <div className="text-left p-2">
+                    <p className="font-bold text-lg">Coupon</p>
+                    <p className="text-base">{selectedInstrument.couponRate}%</p>
+                  </div>
+                  <div className="text-left p-2  ">
+                    <p className="font-bold text-lg">YTM</p>
+                    <p className="text-base">{calculateYTM(
+                        Number(selectedInstrument.faceValue),
+                        Number(selectedInstrument.bid), // or ask depending on convention
+                        Number(selectedInstrument.couponRate),
+                        Number(selectedInstrument.daysToMaturity) / 365
+                      ).toFixed(2)}%</p>
+                  </div>
+
+                  <div className="text-left p-2  ">
+                    <p className="font-bold text-lg">Current Yield</p>
+                    <p className="text-base">{calculateYTM(
+                        Number(selectedInstrument.faceValue),
+                        Number(selectedInstrument.bid), // or ask depending on convention
+                        Number(selectedInstrument.couponRate),
+                        Number(selectedInstrument.daysToMaturity) / 365
+                      ).toFixed(2)}%</p>
+                  </div>
+
+                  <div className="text-left p-2">
+                    <p className="font-bold text-lg">Modified Duration</p>
+                    <p className="text-base">
+                      {selectedInstrument.modifiedDuration} yrs
+                    </p>
+                  </div>
+
+                  <div className="text-left p-2">
+                    <p className="font-bold text-lg">Days to Maturity</p>
+                    <p className="text-base">{selectedInstrument.daysToMaturity}</p>
+                  </div>
+
+                  
+                </div>
+
+                {/* Third Row */}
+                <div className="grid grid-cols-5 gap-4">
+                  <div className="text-left p-2">
+                    <p className="font-bold text-lg">Issue Date</p>
+                    <p className="text-base">{selectedInstrument.issueDate}</p>
+                  </div>
+
+                  <div className="text-left p-2">
+                    <p className="font-bold text-lg">Maturity Date</p>
+                    <p className="text-base">{selectedInstrument.maturityDate}</p>
+                  </div>
+
+                  <div className="text-left p-2">
+                    <p className="font-bold text-lg">Next Coupon</p>
+                    <p className="text-base">{selectedInstrument.nextCouponDate}</p>
+                  </div>
+                  <div className="text-left p-2">
+                    <p className="font-bold text-lg">Bond Type</p>
+                    <p className="text-base">{selectedInstrument.bondType}</p>
+                  </div>
+
+                  <div className="text-left p-2">
+                    <p className="font-bold text-lg">Credit Rating</p>
+                    <p className="text-base">{selectedInstrument.creditRating}</p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-gray-500">Click on a Ticker to view details</p>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* Table + Filters */}
+      <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Market Watch - Fixed Income Instruments</CardTitle>
@@ -145,7 +192,6 @@ const MarketWatch = () => {
           <CardContent className="space-y-4">
             {/* Filters */}
             <div className="flex gap-4">
-              {/* Bond Type Filter */}
               <Label>Bond Type</Label>
               <Select
                 onValueChange={(value) => setBondTypeFilter(value)}
@@ -163,7 +209,6 @@ const MarketWatch = () => {
                 </SelectContent>
               </Select>
 
-              {/* Series Filter */}
               <Label>Series</Label>
               <Select
                 onValueChange={(value) => setSeriesFilter(value)}
@@ -190,10 +235,8 @@ const MarketWatch = () => {
                     <TableHead>Ticker</TableHead>
                     <TableHead>Bid</TableHead>
                     <TableHead>Ask</TableHead>
-                    <TableHead>YTM</TableHead>
                     <TableHead>Coupon Rate</TableHead>
                     <TableHead>Series</TableHead>
-                    <TableHead>Current Yield</TableHead>
                     <TableHead>Face Value</TableHead>
                     <TableHead>Days to Maturity</TableHead>
                     <TableHead>Mod Duration</TableHead>
@@ -203,15 +246,15 @@ const MarketWatch = () => {
                 <TableBody>
                   {filteredInstruments.map((instrument, index) => (
                     <TableRow key={index}>
-                      <TableCell className="font-medium">
+                      <TableCell className="font-medium text-blue-600 cursor-pointer hover:underline"
+                        onClick={() => setSelectedInstrument(instrument)}
+                      >
                         {instrument.ticker}
                       </TableCell>
                       <TableCell>{instrument.bid}</TableCell>
                       <TableCell>{instrument.ask}</TableCell>
-                      <TableCell>{instrument.ytm}</TableCell>
                       <TableCell>{instrument.couponRate}</TableCell>
                       <TableCell>{instrument.series}</TableCell>
-                      <TableCell>{instrument.currentYield}</TableCell>
                       <TableCell>{instrument.faceValue}</TableCell>
                       <TableCell>{instrument.daysToMaturity}</TableCell>
                       <TableCell>{instrument.modifiedDuration}</TableCell>
@@ -223,7 +266,8 @@ const MarketWatch = () => {
             </div>
           </CardContent>
         </Card>
-      </div></>
+      </div>
+    </>
   );
 };
 
