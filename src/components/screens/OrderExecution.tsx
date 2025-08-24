@@ -143,7 +143,9 @@ const OrderExecution = () => {
         ...prev,
         [ticker.toUpperCase()]: (prev[ticker.toUpperCase()] || 0) + Number(quantity)
       }));
+      console.log("[filled check before]",status);
       status = "Filled";
+      console.log("[filled check after]",status);
     } else {
       status = "Pending";
     }
@@ -186,6 +188,7 @@ const OrderExecution = () => {
     addOrder(newOrder); // only pending orders go to Active Orders
     setSuccessMessage("Order submitted and pending.");
   } else {
+    addOrder(newOrder);
     setSuccessMessage(orderType === "Buy" ? "Buy order filled successfully!" : "Sell order executed successfully!");
   }
 

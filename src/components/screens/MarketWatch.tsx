@@ -123,13 +123,12 @@ const calculateYTM = (
 
                   <div className="text-left p-2  ">
                     <p className="font-bold text-lg">Current Yield</p>
-                    <p className="text-base">{calculateYTM(
-                        Number(selectedInstrument.faceValue),
-                        Number(selectedInstrument.bid), // or ask depending on convention
-                        Number(selectedInstrument.couponRate),
-                        Number(selectedInstrument.daysToMaturity) / 365
-                      ).toFixed(2)}%</p>
-                  </div>
+                    <p className="text-base">{calculateCurrentYield(
+      Number(selectedInstrument.couponRate),
+      Number(selectedInstrument.faceValue),
+      Number(selectedInstrument.bid)
+    ).toFixed(2)}%</p>
+                  </div>
 
                   <div className="text-left p-2">
                     <p className="font-bold text-lg">Modified Duration</p>
