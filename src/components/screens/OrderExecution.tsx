@@ -9,12 +9,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+//import { Checkbox } from "@/components/ui/checkbox"; // Added Checkbox component
+import { Label } from "@/components/ui/label" 
 
 // Import the Instrument type from a shared types file
 import type { Instrument } from "../types/Instrument";
 import type { Order } from "../types/Order";
 import type { OrderContextType } from '../types/OrderContextType';
-
 
 // Corrected import path for the JSON data file relative to the component
 import instruments from "../../data/instrument.json";
@@ -25,10 +26,27 @@ const userPortfolio: { [key: string]: number } = {
     'CORPBOND27': 1000,
 };
 
+// Define the OrderContext for use in this file
+// interface Order {
+//   instrument: string;
+//   side: "Buy" | "Sell";
+//   quantity: number;
+//   price: number;
+//   disclosedQty?: number;
+//   stopLoss?: number;
+//   condition?: string;
+//   status: "Pending" | "Partial" | "Filled";
+//   time: string;
+// }
 
+// interface OrderContextType {
+//   orders: Order[];
+//   addOrder: (newOrder: Order) => void;
+//   // This function is new to the context
+//   clearOrders: () => void;
+// }
 // This is a dummy context for this file to satisfy TypeScript
 // and is now properly imported from the parent component.
-// NOTE: The actual provider is in App.tsx
 import { OrderContext } from "../../App";
 
 
@@ -42,6 +60,25 @@ const OrderExecution = () => {
   }
   const { orders, addOrder } = context;
 
+  // inside component
+  const getMarketPrice = (): number | undefined => {
+    const foundInstrument = (instruments as Instrument[]).find(
+      (inst) => inst.ticker.toUpperCase() === ticker.toUpperCase()
+    );
+    if (!foundInstrument) return undefined;
+    return orderType === "Buy" ? foundInstrument.bid : foundInstrument.ask;
+  };
+
+  // --- add new state to track instrument quantities ---
+  const initialQuantities: { [key: string]: number } = {};
+  (instruments as Instrument[]).forEach(inst => {
+    initialQuantities[inst.ticker] = 100; // initialize all with 100
+  });
+
+  const [instrumentQuantities, setInstrumentQuantities] = useState<{ [key: string]: number }>(initialQuantities);
+
+
+
   // State to hold the form data
   const [ticker, setTicker] = useState('');
   const [quantity, setQuantity] = useState<number | ''>('');
@@ -53,12 +90,26 @@ const OrderExecution = () => {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string>('');
 
+  // New state for the market price checkbox
+  //const [isMarketPrice, setIsMarketPrice] = useState(false);
+  const [useMarketPrice, setUseMarketPrice] = useState(false);
+
+  // useEffect hook to update price based on market price checkbox and ticker
+  useEffect(() => {
+    if (useMarketPrice) {
+      const market = getMarketPrice();
+      if (market !== undefined) {
+        setPrice(market);
+      }
+    }
+  }, [useMarketPrice, ticker, orderType]);
+ // Dependencies: run this effect when these states change
+
   // Function to handle form submission
   const handleSubmit = () => {
-    setErrorMessage(''); // Clear previous errors
-    setSuccessMessage(''); // Clear previous success messages
+    setErrorMessage('');
+    setSuccessMessage('');
 
-    // 1. Ticker validation: Check if the entered ticker exists in the fetched data.
     const foundInstrument = (instruments as Instrument[]).find(
       (inst) => inst.ticker.toUpperCase() === ticker.toUpperCase()
     );
@@ -67,9 +118,13 @@ const OrderExecution = () => {
       return;
     }
 
-    // 2. Sell trade validation: Check if the user has enough of the security to sell.
+    if (!quantity || !price) {
+      setErrorMessage('Please fill in Quantity and Price.');
+      return;
+    }
+
+    // --- handle Sell validation ---
     if (orderType === 'Sell') {
-      // Find the quantity the user owns. Use a fallback of 0 if not found.
       const hasSecurity = userPortfolio[ticker.toUpperCase()] || 0;
       if (hasSecurity < Number(quantity)) {
         setErrorMessage('You cannot sell more than you own for this security.');
@@ -77,13 +132,25 @@ const OrderExecution = () => {
       }
     }
 
-    // 3. Basic validation: Ensure quantity and price are filled.
-    if (!quantity || !price) {
-      setErrorMessage('Please fill in Quantity and Price.');
-      return;
+    let status: "Filled" | "Pending" = "Filled";
+
+    // --- handle Buy logic with instrumentQuantities ---
+    if (orderType === "Buy") {
+      const availableQty = instrumentQuantities[ticker.toUpperCase()] ?? 0;
+
+      if (availableQty >= Number(quantity)) {
+        // Enough quantity available → fill order and decrease instrument quantity
+        setInstrumentQuantities(prev => ({
+          ...prev,
+          [ticker.toUpperCase()]: prev[ticker.toUpperCase()] - Number(quantity)
+        }));
+        status = "Filled";
+      } else {
+        // Not enough → mark Pending, keep quantity unchanged
+        status = "Pending";
+      }
     }
 
-    // If all validations pass, create the new order object
     const newOrder: Order = {
       instrument: ticker.toUpperCase(),
       side: orderType,
@@ -92,22 +159,29 @@ const OrderExecution = () => {
       disclosedQty: disclosedQty !== '' ? Number(disclosedQty) : undefined,
       stopLoss: stopLoss !== '' ? Number(stopLoss) : undefined,
       condition: orderCondition,
-      status: 'Pending',
+      status: status,
       time: new Date().toLocaleTimeString(),
     };
 
-    // Use the addOrder function from context to update the shared state
-    addOrder(newOrder);
-    setSuccessMessage('Order submitted successfully!');
-    console.log(orders);
+    // Only add to active orders if Pending
+    if (status === "Pending") {
+      addOrder(newOrder);
+    }
 
-    // Reset the form fields
+    if (status === "Filled") {
+      setSuccessMessage('Order filled immediately!');
+    } else {
+      setSuccessMessage('Order submitted and pending.');
+    }
+
+    // Reset form
     setTicker('');
     setQuantity('');
     setPrice('');
     setDisclosedQty('');
     setStopLoss('');
   };
+
 
   return (
     <div className="space-y-6">
@@ -157,29 +231,82 @@ const OrderExecution = () => {
               <div>
                 <label className="text-sm font-medium">Quantity</label>
                 <Input
-                  placeholder="1000"
+                  placeholder="Enter Quantity.."
                   type="number"
                   value={quantity}
                   onChange={(e) => setQuantity(Number(e.target.value))}
                 />
               </div>
+
               <div>
-                <label className="text-sm font-medium">Price</label>
-                <Input
-                  placeholder="100.50"
-                  type="number"
-                  step="0.01"
-                  value={price}
-                  onChange={(e) => setPrice(Number(e.target.value))}
-                />
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Price</Label>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      id="marketPrice"
+                      type="checkbox"
+                      checked={useMarketPrice}
+                      onChange={(e) => setUseMarketPrice(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <Label htmlFor="marketPrice" className="text-xs text-gray-600">
+                      Market Price
+                    </Label>
+                  </div>
+                </div>
+
+                {(() => {
+                  const market = getMarketPrice();
+
+                  return (
+                    <>
+                      <Input
+                        placeholder="Enter Price.."
+                        type="number"
+                        step="1"
+                        value={price}
+                        onChange={(e) => {
+                          // let user type freely
+                          setPrice(Number(e.target.value));
+                        }}
+                        onBlur={() => {
+                          // clamp only after input loses focus
+                          const market = getMarketPrice();
+                          if (market !== undefined && price !== '') {
+                            const min = Math.ceil(market * 0.95);
+                            const max = Math.floor(market * 1.05);
+
+                            if (Number(price) < min) {
+                              setPrice(min);
+                            } else if (Number(price) > max) {
+                              setPrice(max);
+                            } else {
+                              setPrice(Math.floor(Number(price)));
+                            }
+                          }
+                        }}
+                        disabled={useMarketPrice}
+                        className={useMarketPrice ? "bg-gray-100 cursor-not-allowed" : ""}
+                      />
+
+                      {!useMarketPrice && market !== undefined && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Allowed range: {Math.ceil(market * 0.95)} – {Math.floor(market * 1.05)}
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
+
+
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">Disclosed Qty</label>
                 <Input
-                  placeholder="100"
+                  placeholder="Enter Disclosed Qty.."
                   type="number"
                   value={disclosedQty}
                   onChange={(e) => setDisclosedQty(Number(e.target.value))}
@@ -188,7 +315,7 @@ const OrderExecution = () => {
               <div>
                 <label className="text-sm font-medium">Stop Loss</label>
                 <Input
-                  placeholder="99.00"
+                  placeholder="Enter Stop Loss.."
                   type="number"
                   step="0.01"
                   value={stopLoss}
@@ -219,6 +346,7 @@ const OrderExecution = () => {
                 setPrice('');
                 setDisclosedQty('');
                 setStopLoss('');
+                //setIsMarketPrice(false);
               }}>
                 Clear
               </Button>
@@ -272,6 +400,16 @@ const OrderExecution = () => {
                 </div>
               ))}
             </div>
+            {/* New "Clear All Orders" button */}
+            {/* {orders.length > 0 && (
+              <Button
+                onClick={clearOrders}
+                variant="destructive"
+                className="w-full mt-4"
+              >
+                Clear All Orders
+              </Button>
+            )} */}
           </CardContent>
         </Card>
       </div>
