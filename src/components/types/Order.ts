@@ -7,6 +7,6 @@ export interface Order {
   disclosedQty?: number;
   stopLoss?: number;
   condition?: string;
-  status: "Pending" | "Cancelled" | "Executed";
+  status: "Pending" | "Cancelled" | "Filled";
   time: string;
 }
