@@ -1,4 +1,5 @@
 export interface Order {
+  id: number;
   instrument: string;
   side: "Buy" | "Sell";
   quantity: number;
@@ -6,6 +7,6 @@ export interface Order {
   disclosedQty?: number;
   stopLoss?: number;
   condition?: string;
-  status: "Pending" | "Partial" | "Filled";
+  status: "Pending" | "Cancelled" | "Executed";
   time: string;
 }

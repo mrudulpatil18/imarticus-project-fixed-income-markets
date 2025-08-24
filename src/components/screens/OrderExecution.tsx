@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect } from 'react';
+import { useState, useContext, useEffect, useRef } from 'react';
 import {
   Card,
   CardContent,
@@ -36,6 +36,7 @@ import { OrderContext } from "../../App";
 const OrderExecution = () => {
   // Access the context to get state and functions
   const context = useContext(OrderContext);
+  
   if (!context) {
     // This error will be thrown if the component is used outside of the provider
     throw new Error("OrderExecution must be used within an OrderProvider");
@@ -43,6 +44,7 @@ const OrderExecution = () => {
   const { orders, addOrder } = context;
 
   // State to hold the form data
+  const id = useRef<number>(1);
   const [ticker, setTicker] = useState('');
   const [quantity, setQuantity] = useState<number | ''>('');
   const [price, setPrice] = useState<number | ''>('');
@@ -85,6 +87,7 @@ const OrderExecution = () => {
 
     // If all validations pass, create the new order object
     const newOrder: Order = {
+      id:Date.now(),
       instrument: ticker.toUpperCase(),
       side: orderType,
       quantity: Number(quantity),
@@ -99,7 +102,6 @@ const OrderExecution = () => {
     // Use the addOrder function from context to update the shared state
     addOrder(newOrder);
     setSuccessMessage('Order submitted successfully!');
-    console.log(orders);
 
     // Reset the form fields
     setTicker('');

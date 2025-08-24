@@ -23,9 +23,21 @@ const OrderProvider = ({ children }: { children: ReactNode }) => {
   const addOrder = (newOrder: Order) => {
     setOrders((prevOrders) => [...prevOrders, newOrder]);
   };
+  const cancelOrder = (id: number) => {
+    setOrders((prevOrders) => prevOrders.filter(order => order.id !== id));
+  };
+const updateOrderList = (id: number, quantity: number, price: number) => {
+  setOrders(prevOrders =>
+    prevOrders.map(order =>
+      order.id === id
+        ? { ...order, quantity, price }
+        : order
+    )
+  );
+};
 
   return (
-    <OrderContext.Provider value={{ orders, addOrder }}>
+    <OrderContext.Provider value={{ orders, addOrder, cancelOrder, updateOrderList }}>
       {children}
     </OrderContext.Provider>
   );
