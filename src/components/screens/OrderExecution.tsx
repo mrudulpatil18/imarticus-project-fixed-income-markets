@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect, useRef } from 'react';
+import React, { useState, useContext, useEffect, useRef } from 'react';
 import {
   Card,
   CardContent,
@@ -21,10 +21,13 @@ import type { OrderContextType } from '../types/OrderContextType';
 import instruments from "../../data/instrument.json";
 
 // A simplified portfolio to check for sell eligibility.
-const userPortfolio: { [key: string]: number } = {
-    'INDGOV33': 5000,
-    'CORPBOND27': 1000,
-};
+// const userPortfolio: { [key: string]: number } = {
+//     'INDGOV33': 5000,
+//     'CORPBOND27': 1000,
+// };
+
+// --- Track user’s own holdings from successful buys ---
+
 
 // Define the OrderContext for use in this file
 // interface Order {
@@ -54,7 +57,7 @@ import { OrderContext } from "../../App";
 const OrderExecution = () => {
   // Access the context to get state and functions
   const context = useContext(OrderContext);
-  
+  const [userHoldings, setUserHoldings] = useState<{ [key: string]: number }>({});
   if (!context) {
     // This error will be thrown if the component is used outside of the provider
     throw new Error("OrderExecution must be used within an OrderProvider");
@@ -109,81 +112,91 @@ const OrderExecution = () => {
 
   // Function to handle form submission
   const handleSubmit = () => {
-    setErrorMessage('');
-    setSuccessMessage('');
+  setErrorMessage('');
+  setSuccessMessage('');
 
-    const foundInstrument = (instruments as Instrument[]).find(
-      (inst) => inst.ticker.toUpperCase() === ticker.toUpperCase()
-    );
-    if (!foundInstrument) {
-      setErrorMessage(`Invalid ticker. Please select from: ${(instruments as Instrument[]).map(i => i.ticker).join(', ')}`);
-      return;
-    }
+  const foundInstrument = (instruments as Instrument[]).find(
+    (inst) => inst.ticker.toUpperCase() === ticker.toUpperCase()
+  );
+  if (!foundInstrument) {
+    setErrorMessage(`Invalid ticker. Please select from: ${(instruments as Instrument[]).map(i => i.ticker).join(', ')}`);
+    return;
+  }
 
-    if (!quantity || !price) {
-      setErrorMessage('Please fill in Quantity and Price.');
-      return;
-    }
+  if (!quantity || !price) {
+    setErrorMessage('Please fill in Quantity and Price.');
+    return;
+  }
 
-    // --- handle Sell validation ---
-    if (orderType === 'Sell') {
-      const hasSecurity = userPortfolio[ticker.toUpperCase()] || 0;
-      if (hasSecurity < Number(quantity)) {
-        setErrorMessage('You cannot sell more than you own for this security.');
-        return;
-      }
-    }
+  let status: "Filled" | "Pending" = "Filled";
 
-    let status: "Filled" | "Pending" = "Filled";
+  if (orderType === "Buy") {
+    const availableQty = instrumentQuantities[ticker.toUpperCase()] ?? 0;
 
-    // --- handle Buy logic with instrumentQuantities ---
-    if (orderType === "Buy") {
-      const availableQty = instrumentQuantities[ticker.toUpperCase()] ?? 0;
-
-      if (availableQty >= Number(quantity)) {
-        // Enough quantity available → fill order and decrease instrument quantity
-        setInstrumentQuantities(prev => ({
-          ...prev,
-          [ticker.toUpperCase()]: prev[ticker.toUpperCase()] - Number(quantity)
-        }));
-        status = "Filled";
-      } else {
-        // Not enough → mark Pending, keep quantity unchanged
-        status = "Pending";
-      }
-    }
-
-    const newOrder: Order = {
-      id:Date.now(),
-      instrument: ticker.toUpperCase(),
-      side: orderType,
-      quantity: Number(quantity),
-      price: Number(price),
-      disclosedQty: disclosedQty !== '' ? Number(disclosedQty) : undefined,
-      stopLoss: stopLoss !== '' ? Number(stopLoss) : undefined,
-      condition: orderCondition,
-      status: status,
-      time: new Date().toLocaleTimeString(),
-    };
-
-    // Only add to active orders if Pending
-    if (status === "Pending") {
-      addOrder(newOrder);
-    }
-
-    if (status === "Filled") {
-      setSuccessMessage('Order filled immediately!');
+    if (availableQty >= Number(quantity)) {
+      // Fill order: reduce market, increase holdings
+      setInstrumentQuantities(prev => ({
+        ...prev,
+        [ticker.toUpperCase()]: prev[ticker.toUpperCase()] - Number(quantity)
+      }));
+      setUserHoldings(prev => ({
+        ...prev,
+        [ticker.toUpperCase()]: (prev[ticker.toUpperCase()] || 0) + Number(quantity)
+      }));
+      status = "Filled";
     } else {
-      setSuccessMessage('Order submitted and pending.');
+      status = "Pending";
     }
+  }
 
-    // Reset form
-    setTicker('');
-    setQuantity('');
-    setPrice('');
-    setDisclosedQty('');
-    setStopLoss('');
+  if (orderType === "Sell") {
+    const ownedQty = userHoldings[ticker.toUpperCase()] || 0;
+
+    if (ownedQty < Number(quantity)) {
+      setErrorMessage("You cannot sell more than you own for this security.");
+      return;
+    } else {
+      // Successful sell: decrease holdings, increase market supply
+      setUserHoldings(prev => ({
+        ...prev,
+        [ticker.toUpperCase()]: prev[ticker.toUpperCase()] - Number(quantity)
+      }));
+      setInstrumentQuantities(prev => ({
+        ...prev,
+        [ticker.toUpperCase()]: prev[ticker.toUpperCase()] + Number(quantity)
+      }));
+      status = "Filled";
+    }
+  }
+
+  const newOrder: Order = {
+    id:Date.now(),
+    instrument: ticker.toUpperCase(),
+    side: orderType,
+    quantity: Number(quantity),
+    price: Number(price),
+    disclosedQty: disclosedQty !== '' ? Number(disclosedQty) : undefined,
+    stopLoss: stopLoss !== '' ? Number(stopLoss) : undefined,
+    condition: orderCondition,
+    status: status,
+    time: new Date().toLocaleTimeString(),
   };
+
+  if (status === "Pending") {
+    addOrder(newOrder); // only pending orders go to Active Orders
+    setSuccessMessage("Order submitted and pending.");
+  } else {
+    setSuccessMessage(orderType === "Buy" ? "Buy order filled successfully!" : "Sell order executed successfully!");
+  }
+
+  // Reset form
+  setTicker('');
+  setQuantity('');
+  setPrice('');
+  setDisclosedQty('');
+  setStopLoss('');
+};
+
 
 
   return (
