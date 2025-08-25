@@ -1,4 +1,4 @@
-import { useState, createContext, useContext, type ReactNode} from "react";
+import { useState, createContext, useContext, type ReactNode } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import Header from "./components/layout/Header";
 import MarketWatch from "./components/screens/MarketWatch";
@@ -6,15 +6,13 @@ import OrderExecution from "./components/screens/OrderExecution";
 import TradeManagement from "./components/screens/TradeManagement";
 import NetPosition from "./components/screens/NetPosition";
 import "./App.css";
-import type { Order } from "./components/types/Order"
-import type { OrderContextType } from './components/types/OrderContextType';
-
-// --- Types for Data and Context ---
-
-// Define the shape of the context
+import type { Order } from "./components/types/Order";
+import type { OrderContextType } from "./components/types/OrderContextType";
 
 // Create the context
-export const OrderContext = createContext<OrderContextType | undefined>(undefined);
+export const OrderContext = createContext<OrderContextType | undefined>(
+  undefined,
+);
 
 // --- The Provider Component ---
 const OrderProvider = ({ children }: { children: ReactNode }) => {
@@ -23,21 +21,23 @@ const OrderProvider = ({ children }: { children: ReactNode }) => {
   const addOrder = (newOrder: Order) => {
     setOrders((prevOrders) => [...prevOrders, newOrder]);
   };
+
   const cancelOrder = (id: number) => {
-    setOrders((prevOrders) => prevOrders.filter(order => order.id !== id));
+    setOrders((prevOrders) => prevOrders.filter((order) => order.id !== id));
   };
-const updateOrderList = (id: number, quantity: number, price: number) => {
-  setOrders(prevOrders =>
-    prevOrders.map(order =>
-      order.id === id
-        ? { ...order, quantity, price }
-        : order
-    )
-  );
-};
+
+  const updateOrderList = (id: number, quantity: number, price: number) => {
+    setOrders((prevOrders) =>
+      prevOrders.map((order) =>
+        order.id === id ? { ...order, quantity, price } : order,
+      ),
+    );
+  };
 
   return (
-    <OrderContext.Provider value={{ orders, addOrder, cancelOrder, updateOrderList }}>
+    <OrderContext.Provider
+      value={{ orders, addOrder, cancelOrder, updateOrderList }}
+    >
       {children}
     </OrderContext.Provider>
   );
@@ -58,6 +58,8 @@ function App() {
             <TabsTrigger value="trade-management">Trade Management</TabsTrigger>
             <TabsTrigger value="net-position">Net Position</TabsTrigger>
           </TabsList>
+
+          {/* Move OrderProvider to wrap ALL tabs */}
           <OrderProvider>
             <TabsContent value="market-watch">
               <MarketWatch />
@@ -68,10 +70,10 @@ function App() {
             <TabsContent value="trade-management">
               <TradeManagement />
             </TabsContent>
+            <TabsContent value="net-position">
+              <NetPosition />
+            </TabsContent>
           </OrderProvider>
-          <TabsContent value="net-position">
-            <NetPosition />
-          </TabsContent>
         </Tabs>
       </main>
     </div>

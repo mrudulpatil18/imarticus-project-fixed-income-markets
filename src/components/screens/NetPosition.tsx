@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useContext } from "react";
 import {
   Card,
   CardContent,
@@ -32,13 +32,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Info } from "lucide-react";
+import { OrderContext } from "../../App";
 
 interface Order {
+  id: number;
   instrument: string;
   side: "Buy" | "Sell";
   quantity: number;
   price: number;
-  condition: string;
+  condition?: string;
   status: string;
   time: string;
 }
@@ -73,65 +75,100 @@ const instruments: Instrument[] = [
   { ticker: "CORPBOND27", bid: 100.5, ask: 100.7 },
 ];
 
-// Sample orders for testing/demonstration
-const sampleOrders: Order[] = [
-  {
-    instrument: "INDGOV33",
-    side: "Buy",
-    quantity: 1000,
-    price: 101.5,
-    condition: "Market",
-    status: "Filled",
-    time: "09:30:15",
-  },
-  {
-    instrument: "INDGOV33",
-    side: "Buy",
-    quantity: 500,
-    price: 102.0,
-    condition: "Market",
-    status: "Filled",
-    time: "10:15:22",
-  },
-  {
-    instrument: "INDGOV33",
-    side: "Sell",
-    quantity: 300,
-    price: 102.5,
-    condition: "Market",
-    status: "Filled",
-    time: "11:45:33",
-  },
-  {
-    instrument: "CORPBOND27",
-    side: "Buy",
-    quantity: 2000,
-    price: 99.75,
-    condition: "Market",
-    status: "Filled",
-    time: "09:45:12",
-  },
-  {
-    instrument: "CORPBOND27",
-    side: "Buy",
-    quantity: 1000,
-    price: 100.25,
-    condition: "Market",
-    status: "Filled",
-    time: "14:20:45",
-  },
-];
-
 const NetPosition = () => {
   const [inventoryMethod, setInventoryMethod] =
     useState<InventoryMethod>("FIFO");
 
-  // For now, use sample orders instead of context
-  const orders = sampleOrders;
+  // Sample transactions to demonstrate calculations
+  const sampleTransactions: Order[] = [
+    {
+      id: 999001,
+      instrument: "INDGOV33",
+      side: "Buy",
+      quantity: 1000,
+      price: 101.5,
+      condition: "Market",
+      status: "Filled",
+      time: "09:30:15",
+    },
+    {
+      id: 999002,
+      instrument: "INDGOV33",
+      side: "Buy",
+      quantity: 500,
+      price: 102.0,
+      condition: "Market",
+      status: "Filled",
+      time: "10:15:22",
+    },
+    {
+      id: 999003,
+      instrument: "INDGOV33",
+      side: "Sell",
+      quantity: 300,
+      price: 102.5,
+      condition: "Market",
+      status: "Filled",
+      time: "11:45:33",
+    },
+    {
+      id: 999004,
+      instrument: "CORPBOND27",
+      side: "Buy",
+      quantity: 2000,
+      price: 99.75,
+      condition: "Market",
+      status: "Filled",
+      time: "09:45:12",
+    },
+    {
+      id: 999005,
+      instrument: "CORPBOND27",
+      side: "Buy",
+      quantity: 1000,
+      price: 100.25,
+      condition: "Market",
+      status: "Filled",
+      time: "14:20:45",
+    },
+    {
+      id: 999006,
+      instrument: "CORPBOND27",
+      side: "Sell",
+      quantity: 800,
+      price: 101.0,
+      condition: "Market",
+      status: "Filled",
+      time: "15:30:10",
+    },
+  ];
+
+  // Get orders from context
+  const context = useContext(OrderContext);
+  if (!context) {
+    throw new Error("NetPosition must be used within an OrderProvider");
+  }
+
+  const { orders: contextOrders } = context;
+
+  // Convert context orders to the format expected by this component
+  const contextOrdersFormatted: Order[] = contextOrders.map((order) => ({
+    id: order.id,
+    instrument: order.instrument,
+    side: order.side,
+    quantity: order.quantity,
+    price: order.price,
+    condition: order.condition || "Market",
+    status: order.status,
+    time: order.time,
+  }));
+
+  // Combine sample transactions with context orders
+  const orders: Order[] = [...sampleTransactions, ...contextOrdersFormatted];
 
   // Get market prices from instruments data
   const getMarketPrice = (ticker: string): number => {
-    const instrument = (instruments as Instrument[]).find(
+    const instrument = instruments.find(
       (inst) => inst.ticker.toUpperCase() === ticker.toUpperCase(),
     );
     return instrument ? (instrument.bid + instrument.ask) / 2 : 0;
@@ -141,15 +178,14 @@ const NetPosition = () => {
 
   function matchAndGetRemaining(
     sortedOrders: Order[],
-    method: InventoryMethod, // "FIFO" | "LIFO" | "WEIGHTED_AVG"
+    method: InventoryMethod,
   ) {
-    // Use arrays as queues/stacks for long and short lots
     const longLots: Lot[] = [];
     const shortLots: Lot[] = [];
+
     for (const o of sortedOrders) {
       let qty = o.quantity;
       if (o.side === "Buy") {
-        // First, cover existing short lots (short -> buy covers oldest/last depending on method)
         while (qty > 0 && shortLots.length > 0) {
           const idx = method === "LIFO" ? shortLots.length - 1 : 0;
           const lot = shortLots[idx];
@@ -160,7 +196,6 @@ const NetPosition = () => {
         }
         if (qty > 0) longLots.push({ qty, price: o.price, order: o });
       } else {
-        // Sell: first consume existing long lots
         while (qty > 0 && longLots.length > 0) {
           const idx = method === "LIFO" ? longLots.length - 1 : 0;
           const lot = longLots[idx];
@@ -172,7 +207,7 @@ const NetPosition = () => {
         if (qty > 0) shortLots.push({ qty, price: o.price, order: o });
       }
     }
-    // Net remaining
+
     const longQty = longLots.reduce((s, l) => s + l.qty, 0);
     const shortQty = shortLots.reduce((s, l) => s + l.qty, 0);
     const netRemaining = longQty - shortQty;
@@ -180,32 +215,19 @@ const NetPosition = () => {
     const absQty = remainingLots.reduce((s, l) => s + l.qty, 0);
     const weightedSum = remainingLots.reduce((s, l) => s + l.qty * l.price, 0);
     const avgPrice = absQty > 0 ? weightedSum / absQty : 0;
+
     const usedTrades = remainingLots.map((l) => ({
       order: l.order,
       qtyUsed: l.qty,
     }));
+
     const calculation =
       usedTrades.map((t) => `${t.qtyUsed} × ₹${t.order.price}`).join(" + ") +
       (absQty
         ? ` = ₹${weightedSum.toFixed(2)} ÷ ${absQty} = ₹${avgPrice.toFixed(2)}`
         : "");
-    return { avgPrice, usedTrades, calculation, netRemaining };
-  }
 
-  // Wrappers you can call:
-  function calculateFIFOAverage(sortedOrders: Order[], netPosition: number) {
-    return matchAndGetRemaining(sortedOrders, "FIFO");
-  }
-  function calculateLIFOAverage(sortedOrders: Order[], netPosition: number) {
-    return matchAndGetRemaining(sortedOrders, "LIFO");
-  }
-  function calculateWeightedAverage(
-    sortedOrders: Order[],
-    netPosition: number,
-  ) {
-    // Weighted average as cost of remaining lots. Using FIFO matching then averaging
-    // (alternatively you can compute running moving avg, but remaining-lots approach is correct)
-    return matchAndGetRemaining(sortedOrders, "FIFO");
+    return { avgPrice, usedTrades, calculation, netRemaining };
   }
 
   // Calculate positions based on inventory method
@@ -214,6 +236,10 @@ const NetPosition = () => {
 
     // Only consider filled orders for positions
     const filledOrders = orders.filter((order) => order.status === "Filled");
+
+    if (filledOrders.length === 0) {
+      return [];
+    }
 
     // Group orders by instrument
     const ordersByInstrument = filledOrders.reduce(
@@ -230,23 +256,20 @@ const NetPosition = () => {
     Object.entries(ordersByInstrument).forEach(
       ([instrument, instrumentOrders]) => {
         // Sort orders by time for FIFO/LIFO calculations
-        const sortedOrders = [...instrumentOrders].sort(
-          (a, b) =>
-            new Date(`1970-01-01T${a.time}Z`).getTime() -
-            new Date(`1970-01-01T${b.time}Z`).getTime(),
-        );
+        const sortedOrders = [...instrumentOrders].sort((a, b) => {
+          // Parse time strings to compare them properly
+          const timeA = new Date(`1970-01-01T${a.time}Z`).getTime();
+          const timeB = new Date(`1970-01-01T${b.time}Z`).getTime();
+          return timeA - timeB;
+        });
 
         let result;
         // Calculate average price based on inventory method
         switch (inventoryMethod) {
           case "FIFO":
-            result = calculateFIFOAverage(sortedOrders, 0); // netPosition not used in new implementation
-            break;
           case "LIFO":
-            result = calculateLIFOAverage(sortedOrders, 0); // netPosition not used in new implementation
-            break;
           case "WEIGHTED_AVG":
-            result = calculateWeightedAverage(sortedOrders, 0); // netPosition not used in new implementation
+            result = matchAndGetRemaining(sortedOrders, inventoryMethod);
             break;
           default:
             result = {
@@ -322,6 +345,21 @@ const NetPosition = () => {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Method explanation */}
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+            <h4 className="font-semibold text-sm mb-2">
+              How {inventoryMethod} works:
+            </h4>
+            <p className="text-sm text-gray-600">
+              {inventoryMethod === "FIFO" &&
+                "First In, First Out: When selling, the oldest (first purchased) lots are sold first. Remaining position uses the cost basis of the most recent purchases."}
+              {inventoryMethod === "LIFO" &&
+                "Last In, First Out: When selling, the newest (most recently purchased) lots are sold first. Remaining position uses the cost basis of the oldest purchases."}
+              {inventoryMethod === "WEIGHTED_AVG" &&
+                "Weighted Average: All purchases are averaged together based on quantity weights. When selling, this average cost is used consistently."}
+            </p>
+          </div>
         </CardContent>
       </Card>
 
@@ -359,21 +397,40 @@ const NetPosition = () => {
         </CardContent>
       </Card>
 
+      {/* Status message when no data */}
+      {orders.length === 0 && (
+        <Card>
+          <CardContent className="text-center py-8">
+            <p className="text-gray-500">
+              No orders found. Create some orders in the Order Execution tab to
+              see positions here.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {orders.length > 0 && positions.length === 0 && (
+        <Card>
+          <CardContent className="text-center py-8">
+            <p className="text-gray-500">
+              No net positions found. Only filled orders contribute to
+              positions.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Net Positions Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Net Positions by Asset</CardTitle>
-          <CardDescription>
-            Mark-to-Market profits/losses per instrument using{" "}
-            {inventoryMethod.replace("_", " ")} method
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {positions.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              No net positions found.
-            </div>
-          ) : (
+      {positions.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Net Positions by Asset</CardTitle>
+            <CardDescription>
+              Mark-to-Market profits/losses per instrument using{" "}
+              {inventoryMethod.replace("_", " ")} method
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
             <div className="rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -609,9 +666,9 @@ const NetPosition = () => {
                 </TableBody>
               </Table>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
