@@ -34,6 +34,9 @@ import {
 import { Info } from "lucide-react";
 import { OrderContext } from "../../App";
 
+import type { Instrument } from "../types/Instrument";
+import instrumentsData from "../../data/instrument.json";
+
 interface Order {
   id: number;
   instrument: string;
@@ -43,12 +46,6 @@ interface Order {
   condition?: string;
   status: string;
   time: string;
-}
-
-interface Instrument {
-  ticker: string;
-  bid: number;
-  ask: number;
 }
 
 interface Position {
@@ -69,11 +66,21 @@ interface Position {
 
 type InventoryMethod = "FIFO" | "LIFO" | "WEIGHTED_AVG";
 
-// Sample instruments data
-const instruments: Instrument[] = [
-  { ticker: "INDGOV33", bid: 102.0, ask: 102.2 },
-  { ticker: "CORPBOND27", bid: 100.5, ask: 100.7 },
-];
+const instruments = instrumentsData as Instrument[];
+
+// Update the getMarketPrice function to handle missing instruments better:
+const getMarketPrice = (ticker: string): number => {
+  const instrument = instruments.find(
+    (inst) => inst.ticker.toUpperCase() === ticker.toUpperCase(),
+  );
+
+  if (!instrument) {
+    console.warn(`Instrument ${ticker} not found in market data`);
+    return 0; // or return a default price
+  }
+
+  return (instrument.bid + instrument.ask) / 2;
+};
 
 const NetPosition = () => {
   const [inventoryMethod, setInventoryMethod] =
@@ -165,14 +172,6 @@ const NetPosition = () => {
 
   // Combine sample transactions with context orders
   const orders: Order[] = [...sampleTransactions, ...contextOrdersFormatted];
-
-  // Get market prices from instruments data
-  const getMarketPrice = (ticker: string): number => {
-    const instrument = instruments.find(
-      (inst) => inst.ticker.toUpperCase() === ticker.toUpperCase(),
-    );
-    return instrument ? (instrument.bid + instrument.ask) / 2 : 0;
-  };
 
   type Lot = { qty: number; price: number; order: Order };
 
