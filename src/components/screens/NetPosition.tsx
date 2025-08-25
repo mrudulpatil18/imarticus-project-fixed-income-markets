@@ -93,7 +93,7 @@ const NetPosition = () => {
       instrument: "INDGOV33",
       side: "Buy",
       quantity: 1000,
-      price: 101.5,
+      price: 925.5,
       condition: "Market",
       status: "Filled",
       time: "09:30:15",
@@ -103,7 +103,7 @@ const NetPosition = () => {
       instrument: "INDGOV33",
       side: "Buy",
       quantity: 500,
-      price: 102.0,
+      price: 1001.3,
       condition: "Market",
       status: "Filled",
       time: "10:15:22",
@@ -113,7 +113,7 @@ const NetPosition = () => {
       instrument: "INDGOV33",
       side: "Sell",
       quantity: 300,
-      price: 102.5,
+      price: 1012.5,
       condition: "Market",
       status: "Filled",
       time: "11:45:33",
@@ -123,7 +123,7 @@ const NetPosition = () => {
       instrument: "CORPBOND27",
       side: "Buy",
       quantity: 2000,
-      price: 99.75,
+      price: 1021.5,
       condition: "Market",
       status: "Filled",
       time: "09:45:12",
@@ -133,7 +133,7 @@ const NetPosition = () => {
       instrument: "CORPBOND27",
       side: "Buy",
       quantity: 1000,
-      price: 100.25,
+      price: 990.5,
       condition: "Market",
       status: "Filled",
       time: "14:20:45",
@@ -143,7 +143,7 @@ const NetPosition = () => {
       instrument: "CORPBOND27",
       side: "Sell",
       quantity: 800,
-      price: 101.0,
+      price: 1001.5,
       condition: "Market",
       status: "Filled",
       time: "15:30:10",
@@ -174,6 +174,82 @@ const NetPosition = () => {
   const orders: Order[] = [...sampleTransactions, ...contextOrdersFormatted];
 
   type Lot = { qty: number; price: number; order: Order };
+
+  function calculateWeightedAverage(sortedOrders: Order[]) {
+    let netPosition = 0;
+    let totalCost = 0;
+    let transactions: Array<{ order: Order; qtyUsed: number }> = [];
+
+    for (const order of sortedOrders) {
+      const quantity = order.side === "Buy" ? order.quantity : -order.quantity;
+      const orderValue = order.quantity * order.price;
+
+      if (netPosition === 0) {
+        // Starting fresh position
+        netPosition = quantity;
+        totalCost = Math.abs(quantity) * order.price;
+        transactions = [{ order, qtyUsed: order.quantity }];
+      } else if (Math.sign(netPosition) === Math.sign(quantity)) {
+        // Adding to existing position (same direction)
+        netPosition += quantity;
+
+        // Update weighted average cost
+        totalCost = totalCost + orderValue;
+        transactions.push({ order, qtyUsed: order.quantity });
+      } else {
+        // Reducing or reversing position (opposite direction)
+        const reductionQty = Math.min(
+          Math.abs(quantity),
+          Math.abs(netPosition),
+        );
+
+        if (Math.abs(quantity) >= Math.abs(netPosition)) {
+          // Position reverses or closes
+          netPosition += quantity;
+
+          if (netPosition === 0) {
+            // Position closed completely
+            totalCost = 0;
+            transactions = [];
+          } else {
+            // Position reversed - remaining quantity at new price
+            const remainingQty = Math.abs(quantity) - reductionQty;
+            totalCost = remainingQty * order.price;
+            transactions = [{ order, qtyUsed: remainingQty }];
+          }
+        } else {
+          // Position partially reduced
+          netPosition += quantity;
+          // Keep same average price, just reduce total cost proportionally
+          const remainingRatio =
+            Math.abs(netPosition) / (Math.abs(netPosition) + reductionQty);
+          totalCost *= remainingRatio;
+          // Don't add this reducing transaction to the calculation
+        }
+      }
+    }
+
+    const avgPrice =
+      Math.abs(netPosition) > 0 ? totalCost / Math.abs(netPosition) : 0;
+
+    // Create calculation string
+    const calculation =
+      transactions.length > 0
+        ? transactions
+            .map((t) => `${t.qtyUsed} × ₹${t.order.price}`)
+            .join(" + ") +
+          (Math.abs(netPosition) > 0
+            ? ` = ₹${totalCost.toFixed(2)} ÷ ${Math.abs(netPosition)} = ₹${avgPrice.toFixed(2)}`
+            : "")
+        : "No position";
+
+    return {
+      avgPrice,
+      usedTrades: transactions,
+      calculation,
+      netRemaining: netPosition,
+    };
+  }
 
   function matchAndGetRemaining(
     sortedOrders: Order[],
@@ -267,8 +343,10 @@ const NetPosition = () => {
         switch (inventoryMethod) {
           case "FIFO":
           case "LIFO":
-          case "WEIGHTED_AVG":
             result = matchAndGetRemaining(sortedOrders, inventoryMethod);
+            break;
+          case "WEIGHTED_AVG":
+            result = calculateWeightedAverage(sortedOrders);
             break;
           default:
             result = {
@@ -356,7 +434,7 @@ const NetPosition = () => {
               {inventoryMethod === "LIFO" &&
                 "Last In, First Out: When selling, the newest (most recently purchased) lots are sold first. Remaining position uses the cost basis of the oldest purchases."}
               {inventoryMethod === "WEIGHTED_AVG" &&
-                "Weighted Average: All purchases are averaged together based on quantity weights. When selling, this average cost is used consistently."}
+                "Weighted Average: All purchases are combined into a single average cost that gets updated with each transaction. When selling, the average cost basis is maintained and only the quantity changes."}
             </p>
           </div>
         </CardContent>
@@ -582,7 +660,9 @@ const NetPosition = () => {
                                   <div className="space-y-4">
                                     <div>
                                       <div className="text-sm font-medium text-gray-700 mb-2">
-                                        Remaining Lots Used for Average Price:
+                                        {inventoryMethod === "WEIGHTED_AVG"
+                                          ? "Transactions Contributing to Average Price:"
+                                          : "Remaining Lots Used for Average Price:"}
                                       </div>
                                       <div className="space-y-2">
                                         {position.calculationBreakdown.usedTrades.map(
